@@ -1,0 +1,39 @@
+name: build
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            suffix: windows-x86_64
+            ext: .exe
+          - os: ubuntu-latest
+            suffix: linux-x86_64
+            ext: ""
+          - os: macos-latest
+            suffix: macos-arm64
+            ext: ""
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev libwayland-dev libgtk-3-dev
+      - run: cargo build --release --manifest-path rust/Cargo.toml
+      - shell: bash
+        run: |
+          mkdir -p out
+          cp rust/target/release/claude-sessions${{ matrix.ext }} out/claude-sessions-${{ matrix.suffix }}${{ matrix.ext }}
+          cp rust/target/release/claude-sessions-cli${{ matrix.ext }} out/claude-sessions-cli-${{ matrix.suffix }}${{ matrix.ext }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: claude-sessions-${{ matrix.suffix }}
+          path: out/*
+      - if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
